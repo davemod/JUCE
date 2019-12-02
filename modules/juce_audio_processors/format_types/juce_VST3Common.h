@@ -1356,6 +1356,7 @@ public:
     {
         const auto numEvents = eventList.getEventCount();
 
+        
         for (Steinberg::int32 i = 0; i < numEvents; ++i)
         {
             Steinberg::Vst::Event e;
