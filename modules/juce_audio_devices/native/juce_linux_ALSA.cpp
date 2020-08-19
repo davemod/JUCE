@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   Copyright (c) 2020 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -791,7 +791,7 @@ private:
     //==============================================================================
     const String inputId, outputId;
     std::unique_ptr<ALSADevice> outputDevice, inputDevice;
-    int numCallbacks = 0;
+    std::atomic<int> numCallbacks { 0 };
     bool audioIoInProgress = false;
 
     CriticalSection callbackLock;
@@ -1249,7 +1249,7 @@ private:
             snd_device_name_free_hint (hints);
         }
 
-        // sometimes the "default" device is not listed, but it is nice to see it explicitely in the list
+        // sometimes the "default" device is not listed, but it is nice to see it explicitly in the list
         if (! outputIds.contains ("default"))
             testDevice ("default", "Default ALSA Output", "Default ALSA Input");
 

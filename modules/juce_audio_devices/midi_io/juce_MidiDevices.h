@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   Copyright (c) 2020 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -30,6 +30,8 @@ namespace juce
     getDefaultDevice() methods of MidiInput and MidiOutput or by calling getDeviceInfo()
     on an instance of these classes. Devices can be opened by passing the identifier to
     the openDevice() method.
+
+    @tags{Audio}
 */
 struct MidiDeviceInfo
 {
@@ -334,6 +336,11 @@ public:
         @see startBackgroundThread
     */
     void stopBackgroundThread();
+
+    /** Returns true if the background thread used to send blocks of data is running.
+        @see startBackgroundThread, stopBackgroundThread
+    */
+    bool isBackgroundThreadRunning() const noexcept  { return isThreadRunning(); }
 
     //==============================================================================
     /** Deprecated. */

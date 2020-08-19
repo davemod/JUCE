@@ -2,17 +2,16 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   Copyright (c) 2020 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
 
-   By using JUCE, you agree to the terms of both the JUCE 5 End-User License
-   Agreement and JUCE 5 Privacy Policy (both updated and effective as of the
-   27th April 2017).
+   By using JUCE, you agree to the terms of both the JUCE 6 End-User License
+   Agreement and JUCE Privacy Policy (both effective as of the 16th June 2020).
 
-   End User License Agreement: www.juce.com/juce-5-licence
-   Privacy Policy: www.juce.com/juce-5-privacy-policy
+   End User License Agreement: www.juce.com/juce-6-licence
+   Privacy Policy: www.juce.com/juce-privacy-policy
 
    Or: You may also use this code under the terms of the GPL v3 (see
    www.gnu.org/licenses).
@@ -157,6 +156,19 @@ public:
         throughout the life-time of the AudioBlock without being modified.
     */
     template <typename OtherSampleType>
+    constexpr AudioBlock (const AudioBuffer<OtherSampleType>& buffer) noexcept
+        : channels (buffer.getArrayOfReadPointers()),
+          numChannels (static_cast<ChannelCountType> (buffer.getNumChannels())),
+          numSamples (static_cast<size_t> (buffer.getNumSamples()))
+    {
+    }
+
+    /** Creates an AudioBlock that points to the data in an AudioBuffer.
+        AudioBlock does not copy nor own the memory pointed to by dataToUse.
+        Therefore it is the user's responsibility to ensure that the buffer is retained
+        throughout the life-time of the AudioBlock without being modified.
+    */
+    template <typename OtherSampleType>
     AudioBlock (AudioBuffer<OtherSampleType>& buffer, size_t startSampleIndex) noexcept
         : channels (buffer.getArrayOfWritePointers()),
           numChannels (static_cast<ChannelCountType> (buffer.getNumChannels())),
@@ -234,7 +246,7 @@ public:
         return AudioBlock (channels + channel, 1, startSample, numSamples);
     }
 
-    /** Returns a subset of continguous channels
+    /** Returns a subset of contiguous channels
         @param channelStart       First channel of the subset
         @param numChannelsToUse   Count of channels in the subset
     */

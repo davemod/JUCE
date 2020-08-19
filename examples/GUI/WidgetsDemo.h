@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE examples.
-   Copyright (c) 2017 - ROLI Ltd.
+   Copyright (c) 2020 - Raw Material Software Limited
 
    The code included in this file is provided under the terms of the ISC license
    http://www.isc.org/downloads/software-support-policy/isc-license. Permission
@@ -87,7 +87,12 @@ public:
 
     void clicked() override
     {
-        auto* colourSelector = new ColourSelector();
+        auto* colourSelector = new ColourSelector (ColourSelector::showAlphaChannel
+                                                   | ColourSelector::showColourAtTop
+                                                   | ColourSelector::editableColour
+                                                   | ColourSelector::showSliders
+                                                   | ColourSelector::showColourspace);
+
         colourSelector->setName ("background");
         colourSelector->setCurrentColour (findColour (TextButton::buttonColourId));
         colourSelector->addChangeListener (this);
@@ -439,6 +444,8 @@ private:
     OwnedArray<Component> components;
     std::unique_ptr<BubbleMessageComponent> bubbleMessage;
 
+    TooltipWindow tooltipWindow;
+
     // This little function avoids a bit of code-duplication by adding a component to
     // our list as well as calling addAndMakeVisible on it..
     template <typename ComponentType>
@@ -660,7 +667,7 @@ private:
             if (iconsFromZipFile.size() == 0)
             {
                 // If we've not already done so, load all the images from the zip file..
-                ZipFile icons (createAssetInputStream ("icons.zip"), true);
+                ZipFile icons (createAssetInputStream ("icons.zip").release(), true);
 
                 for (int i = 0; i < icons.getNumEntries(); ++i)
                 {
@@ -1099,7 +1106,7 @@ private:
                 g.fillAll (Colours::lightblue);
 
             g.setColour (LookAndFeel::getDefaultLookAndFeel().findColour (Label::textColourId));
-            g.setFont (height * 0.7f);
+            g.setFont ((float) height * 0.7f);
 
             g.drawText ("Draggable Thing #" + String (rowNumber + 1),
                         5, 0, width, height,

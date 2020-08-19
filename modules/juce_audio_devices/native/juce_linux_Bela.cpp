@@ -2,7 +2,7 @@
   ==============================================================================
 
    This file is part of the JUCE library.
-   Copyright (c) 2017 - ROLI Ltd.
+   Copyright (c) 2020 - Raw Material Software Limited
 
    JUCE is an open source library subject to commercial or open-source
    licensing.
@@ -373,7 +373,7 @@ public:
     BigInteger getActiveInputChannels() const override    { BigInteger b; b.setRange (0, actualNumberOfInputs, true);  return b; }
     int getOutputLatencyInSamples() override              { /* TODO */ return 0; }
     int getInputLatencyInSamples() override               { /* TODO */ return 0; }
-    int getXRunCount() const noexcept                     { return underruns; }
+    int getXRunCount() const noexcept override            { return underruns; }
 
     //==============================================================================
     static const char* const belaTypeName;

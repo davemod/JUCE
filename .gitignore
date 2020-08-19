@@ -49,6 +49,7 @@ profile
 **/Builds/Android/local.properties
 **/Builds/Android/app/build
 **/Builds/Android/app/.externalNativeBuild
+**/Builds/Android/app/.cxx
 **/Builds/Android/lib/build
 **/Builds/Android/lib/.externalNativeBuild
 **/Builds/CLion/cmake-build-*
@@ -57,4 +58,8 @@ profile
 **/Builds/MacOSX/**/Intermediates.noindex
 **/doxygen/doc
 **/doxygen/build
+**/.idea
 extras/Projucer/JUCECompileEngine.dylib
+
+.idea
+**/cmake-build*
