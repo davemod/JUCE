@@ -984,10 +984,10 @@ void ValueTree::removeListener (Listener* listener)
         object->valueTreesWithListeners.removeValue (this);
 }
 
-void ValueTree::sendPropertyChangeMessage (const Identifier& property)
+void ValueTree::sendPropertyChangeMessage (const Identifier& property, ValueTree::Listener* listenerToExclude)
 {
     if (object != nullptr)
-        object->sendPropertyChangeMessage (property);
+        object->sendPropertyChangeMessage (property, listenerToExclude);
 }
 
 //==============================================================================

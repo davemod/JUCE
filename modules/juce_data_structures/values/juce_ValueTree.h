@@ -564,7 +564,7 @@ public:
     /** Causes a property-change callback to be triggered for the specified property,
         calling any listeners that are registered.
     */
-    void sendPropertyChangeMessage (const Identifier& property);
+    void sendPropertyChangeMessage (const Identifier& property, ValueTree::Listener* listenerToExclude = nullptr);
 
     //==============================================================================
     /** This method uses a comparator object to sort the tree's children into order.
