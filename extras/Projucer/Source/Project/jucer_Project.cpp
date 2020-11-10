@@ -112,7 +112,7 @@ Project::Project (const File& f)
     updateJUCEPathWarning();
     getGlobalProperties().addChangeListener (this);
 
-    if (! app.isRunningCommandLine)
+    if (! app.isRunningCommandLine && app.isAutomaticVersionCheckingEnabled())
         LatestVersionCheckerAndUpdater::getInstance()->checkForNewVersion (true);
 }
 
@@ -653,6 +653,7 @@ Result Project::loadDocument (const File& file)
 
     setChangedFlag (false);
 
+    updateExporterWarnings();
     updateLicenseWarning();
 
     return Result::ok();
@@ -828,6 +829,20 @@ void Project::updateModuleWarnings()
     updateModuleNotFoundWarning (moduleNotFound);
 }
 
+void Project::updateExporterWarnings()
+{
+    auto isClionPresent = [this]()
+    {
+        for (ExporterIterator exporter (*this); exporter.next();)
+            if (exporter->isCLion())
+                return true;
+
+        return false;
+    }();
+
+    updateCLionWarning (isClionPresent);
+}
+
 void Project::updateCppStandardWarning (bool showWarning)
 {
     if (showWarning)
@@ -891,6 +906,14 @@ void Project::updateOldProjucerWarning (bool showWarning)
         addProjectMessage (ProjectMessages::Ids::oldProjucer, {});
     else
         removeProjectMessage (ProjectMessages::Ids::oldProjucer);
+}
+
+void Project::updateCLionWarning (bool showWarning)
+{
+    if (showWarning)
+        addProjectMessage (ProjectMessages::Ids::cLion, {});
+    else
+        removeProjectMessage (ProjectMessages::Ids::cLion);
 }
 
 void Project::updateModuleNotFoundWarning (bool showWarning)
@@ -1050,6 +1073,8 @@ void Project::valueTreeChildAdded (ValueTree& parent, ValueTree& child)
 
     if (child.getType() == Ids::MODULE)
         updateModuleWarnings();
+    else if (parent.getType() == Ids::EXPORTFORMATS)
+        updateExporterWarnings();
 
     changed();
 }
@@ -1060,6 +1085,8 @@ void Project::valueTreeChildRemoved (ValueTree& parent, ValueTree& child, int in
 
     if (child.getType() == Ids::MODULE)
         updateModuleWarnings();
+    else if (parent.getType() == Ids::EXPORTFORMATS)
+        updateExporterWarnings();
 
     changed();
 }
@@ -1196,25 +1223,33 @@ bool Project::shouldBuildTargetType (build_tools::ProjectType::Target::Type targ
 build_tools::ProjectType::Target::Type Project::getTargetTypeFromFilePath (const File& file, bool returnSharedTargetIfNoValidSuffix)
 {
     auto path = file.getFullPathName();
+    String pluginClientModuleName = "juce_audio_plugin_client";
 
-    auto isInPluginClientSubdir = [&path] (StringRef subDir)
+    auto isInPluginClientSubdir = [&path, &pluginClientModuleName] (StringRef subDir)
     {
-        return path.contains ("juce_audio_plugin_client"
+        return path.contains (pluginClientModuleName
                              + File::getSeparatorString()
                              + subDir
                              + File::getSeparatorString());
     };
 
-    if      (LibraryModule::CompileUnit::hasSuffix (file, "_AU")         || isInPluginClientSubdir ("AU"))          return build_tools::ProjectType::Target::AudioUnitPlugIn;
-    else if (LibraryModule::CompileUnit::hasSuffix (file, "_AUv3")       || isInPluginClientSubdir ("AU"))          return build_tools::ProjectType::Target::AudioUnitv3PlugIn;
-    else if (LibraryModule::CompileUnit::hasSuffix (file, "_AAX")        || isInPluginClientSubdir ("AAX"))         return build_tools::ProjectType::Target::AAXPlugIn;
-    else if (LibraryModule::CompileUnit::hasSuffix (file, "_RTAS")       || isInPluginClientSubdir ("RTAS"))        return build_tools::ProjectType::Target::RTASPlugIn;
-    else if (LibraryModule::CompileUnit::hasSuffix (file, "_VST2")       || isInPluginClientSubdir ("VST"))         return build_tools::ProjectType::Target::VSTPlugIn;
-    else if (LibraryModule::CompileUnit::hasSuffix (file, "_VST3")       || isInPluginClientSubdir ("VST3"))        return build_tools::ProjectType::Target::VST3PlugIn;
-    else if (LibraryModule::CompileUnit::hasSuffix (file, "_Standalone") || isInPluginClientSubdir ("Standalone"))  return build_tools::ProjectType::Target::StandalonePlugIn;
-    else if (LibraryModule::CompileUnit::hasSuffix (file, "_Unity")      || isInPluginClientSubdir ("Unity"))       return build_tools::ProjectType::Target::UnityPlugIn;
+    auto isPluginClientSource = [&path, &pluginClientModuleName] (StringRef suffix)
+    {
+        auto prefix = pluginClientModuleName + "_" + suffix;
+        return path.contains (prefix + ".") || path.contains (prefix + "_");
+    };
 
-    return (returnSharedTargetIfNoValidSuffix ? build_tools::ProjectType::Target::SharedCodeTarget : build_tools::ProjectType::Target::unspecified);
+    if (isPluginClientSource ("AU")         || isInPluginClientSubdir ("AU"))          return build_tools::ProjectType::Target::AudioUnitPlugIn;
+    if (isPluginClientSource ("AUv3")       || isInPluginClientSubdir ("AU"))          return build_tools::ProjectType::Target::AudioUnitv3PlugIn;
+    if (isPluginClientSource ("AAX")        || isInPluginClientSubdir ("AAX"))         return build_tools::ProjectType::Target::AAXPlugIn;
+    if (isPluginClientSource ("RTAS")       || isInPluginClientSubdir ("RTAS"))        return build_tools::ProjectType::Target::RTASPlugIn;
+    if (isPluginClientSource ("VST2")       || isInPluginClientSubdir ("VST"))         return build_tools::ProjectType::Target::VSTPlugIn;
+    if (isPluginClientSource ("VST3")       || isInPluginClientSubdir ("VST3"))        return build_tools::ProjectType::Target::VST3PlugIn;
+    if (isPluginClientSource ("Standalone") || isInPluginClientSubdir ("Standalone"))  return build_tools::ProjectType::Target::StandalonePlugIn;
+    if (isPluginClientSource ("Unity")      || isInPluginClientSubdir ("Unity"))       return build_tools::ProjectType::Target::UnityPlugIn;
+
+    return (returnSharedTargetIfNoValidSuffix ? build_tools::ProjectType::Target::SharedCodeTarget
+                                              : build_tools::ProjectType::Target::unspecified);
 }
 
 //==============================================================================
@@ -1510,6 +1545,11 @@ bool Project::Item::isImageFile() const
                           || getFile().hasFileExtension ("svg"));
 }
 
+bool Project::Item::isSourceFile() const
+{
+    return isFile() && getFile().hasFileExtension (sourceFileExtensions);
+}
+
 Project::Item Project::Item::findItemWithID (const String& targetId) const
 {
     if (state [Ids::ID] == targetId)
@@ -1564,6 +1604,9 @@ Value Project::Item::getShouldInhibitWarningsValue()        { return state.getPr
 bool Project::Item::shouldInhibitWarnings() const           { return state [Ids::noWarnings]; }
 
 bool Project::Item::isModuleCode() const                    { return belongsToModule; }
+
+Value Project::Item::getShouldSkipPCHValue()                { return state.getPropertyAsValue (Ids::skipPCH, getUndoManager()); }
+bool Project::Item::shouldSkipPCH() const                   { return isModuleCode() || state [Ids::skipPCH]; }
 
 Value Project::Item::getCompilerFlagSchemeValue()           { return state.getPropertyAsValue (Ids::compilerFlagScheme, getUndoManager()); }
 String Project::Item::getCompilerFlagSchemeString() const   { return state [Ids::compilerFlagScheme]; }

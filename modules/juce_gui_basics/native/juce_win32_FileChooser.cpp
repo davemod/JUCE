@@ -154,7 +154,7 @@ private:
     Component::SafePointer<Component> owner;
     String title, filtersString;
     std::unique_ptr<CustomComponentHolder> customComponent;
-    String initialPath, returnedString, defaultExtension;
+    String initialPath, returnedString;
 
     WaitableEvent threadHasReference;
     CriticalSection deletingDialog;
@@ -210,7 +210,7 @@ private:
         if (FAILED (dialog.SetFileName (filename.toWideCharPointer())))
             return false;
 
-        const auto extension = filename.fromLastOccurrenceOf (".", false, false);
+        auto extension = getDefaultFileExtension (filename);
 
         if (extension.isNotEmpty() && FAILED (dialog.SetDefaultExtension (extension.toWideCharPointer())))
             return false;
@@ -367,16 +367,10 @@ private:
 
             if (isSave)
             {
-                StringArray tokens;
-                tokens.addTokens (filtersString, ";,", "\"'");
-                tokens.trim();
-                tokens.removeEmptyStrings();
+                auto extension = getDefaultFileExtension (files.getData());
 
-                if (tokens.size() == 1 && tokens[0].removeCharacters ("*.").isNotEmpty())
-                {
-                    defaultExtension = tokens[0].fromFirstOccurrenceOf (".", false, false);
-                    of.lpstrDefExt = defaultExtension.toWideCharPointer();
-                }
+                if (extension.isNotEmpty())
+                    of.lpstrDefExt = extension.toWideCharPointer();
 
                 if (! GetSaveFileName (&of))
                     return {};
@@ -418,26 +412,44 @@ private:
 
         const Remover remover (*this);
 
-        if (SystemStats::getOperatingSystemType() >= SystemStats::WinVista)
+        if (SystemStats::getOperatingSystemType() >= SystemStats::WinVista
+            && customComponent == nullptr)
+        {
             return openDialogVistaAndUp (async);
+        }
 
         return openDialogPreVista (async);
     }
 
     void run() override
     {
+        // We use a functor rather than a lambda here because
+        // we want to move ownership of the Ptr into the function
+        // object, and C++11 doesn't support general lambda capture
+        struct AsyncCallback
+        {
+            AsyncCallback (Ptr p, Array<URL> r)
+                : ptr (std::move (p)),
+                  results (std::move (r)) {}
+
+            void operator()()
+            {
+                ptr->results = std::move (results);
+
+                if (ptr->owner != nullptr)
+                    ptr->owner->exitModalState (ptr->results.size() > 0 ? 1 : 0);
+            }
+
+            Ptr ptr;
+            Array<URL> results;
+        };
+
         // as long as the thread is running, don't delete this class
         Ptr safeThis (this);
         threadHasReference.signal();
 
         auto r = openDialog (true);
-        MessageManager::callAsync ([safeThis, r]
-        {
-            safeThis->results = r;
-
-            if (safeThis->owner != nullptr)
-                safeThis->owner->exitModalState (r.size() > 0 ? 1 : 0);
-        });
+        MessageManager::callAsync (AsyncCallback (std::move (safeThis), std::move (r)));
     }
 
     static HashMap<HWND, Win32NativeFileChooser*>& getNativeDialogList()
@@ -482,6 +494,23 @@ private:
         return ofFlags;
     }
 
+    String getDefaultFileExtension (const String& filename) const
+    {
+        auto extension = filename.fromLastOccurrenceOf (".", false, false);
+
+        if (extension.isEmpty())
+        {
+            auto tokens = StringArray::fromTokens (filtersString, ";,", "\"'");
+            tokens.trim();
+            tokens.removeEmptyStrings();
+
+            if (tokens.size() == 1 && tokens[0].removeCharacters ("*.").isNotEmpty())
+                extension = tokens[0].fromFirstOccurrenceOf (".", false, false);
+        }
+
+        return extension;
+    }
+
     //==============================================================================
     void initialised (HWND hWnd)
     {
@@ -518,7 +547,7 @@ private:
                 auto screenRectangle = Rectangle<int>::leftTopRightBottom (dialogScreenRect.left,  dialogScreenRect.top,
                                                                            dialogScreenRect.right, dialogScreenRect.bottom);
 
-                auto scale = Desktop::getInstance().getDisplays().findDisplayForRect (screenRectangle, true).scale;
+                auto scale = Desktop::getInstance().getDisplays().getDisplayForRect (screenRectangle, true)->scale;
                 auto physicalComponentWidth = roundToInt (safeCustomComponent->getWidth() * scale);
 
                 SetWindowPos (hdlg, nullptr, screenRectangle.getX(), screenRectangle.getY(),
@@ -671,7 +700,7 @@ public:
           nativeFileChooser (new Win32NativeFileChooser (this, flags, previewComp, fileChooser.startingFile,
                                                          fileChooser.title, fileChooser.filters))
     {
-        auto mainMon = Desktop::getInstance().getDisplays().getMainDisplay().userArea;
+        auto mainMon = Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea;
 
         setBounds (mainMon.getX() + mainMon.getWidth() / 4,
                    mainMon.getY() + mainMon.getHeight() / 4,
