@@ -1899,6 +1899,21 @@ void Component::paintOverChildren (Graphics&)
     // all painting is done in the subclasses
 }
 
+
+
+//==============================================================================
+Rectangle<int> Component::getClipRegionForComponent ()
+{
+    return getBounds();
+}
+
+Path Component::getClipPathForComponent ()
+{
+    Path p;
+    p.addRectangle(getBounds());
+    return p;
+}
+
 //==============================================================================
 void Component::paintWithinParentContext (Graphics& g)
 {
@@ -1938,10 +1953,10 @@ void Component::paintComponentAndChildren (Graphics& g)
 
                 g.addTransform (*child.affineTransform);
 
-                if ((child.flags.dontClipGraphicsFlag && ! g.isClipEmpty()) || g.reduceClipRegion (child.getBounds()))
+                if ((child.flags.dontClipGraphicsFlag && ! g.isClipEmpty()) || g.reduceClipRegion (child.getClipPathForComponent()))
                     child.paintWithinParentContext (g);
             }
-            else if (clipBounds.intersects (child.getBounds()))
+            else if (clipBounds.intersects (child.getClipRegionForComponent()))
             {
                 Graphics::ScopedSaveState ss (g);
 
@@ -1949,7 +1964,7 @@ void Component::paintComponentAndChildren (Graphics& g)
                 {
                     child.paintWithinParentContext (g);
                 }
-                else if (g.reduceClipRegion (child.getBounds()))
+                else if (g.reduceClipRegion (child.getClipPathForComponent()))
                 {
                     bool nothingClipped = true;
 
@@ -1960,7 +1975,7 @@ void Component::paintComponentAndChildren (Graphics& g)
                         if (sibling.flags.opaqueFlag && sibling.isVisible() && sibling.affineTransform == nullptr)
                         {
                             nothingClipped = false;
-                            g.excludeClipRegion (sibling.getBounds());
+                            g.excludeClipRegion (sibling.getClipRegionForComponent());
                         }
                     }
 
