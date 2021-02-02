@@ -62,6 +62,11 @@ public:
     }
 };
 
+const inline OSCType OSCTypes::int32   = 'i';
+const inline OSCType OSCTypes::float32 = 'f';
+const inline OSCType OSCTypes::string  = 's';
+const inline OSCType OSCTypes::blob    = 'b';
+const inline OSCType OSCTypes::colour  = 'r';
 
 //==============================================================================
 /**
