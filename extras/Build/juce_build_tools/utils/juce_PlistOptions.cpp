@@ -30,7 +30,7 @@ namespace build_tools
     //==============================================================================
     static bool keyFoundAndNotSequentialDuplicate (XmlElement& xml, const String& key)
     {
-        forEachXmlChildElementWithTagName (xml, element, "key")
+        for (auto* element : xml.getChildWithTagNameIterator ("key"))
         {
             if (element->getAllSubText().trim().equalsIgnoreCase (key))
             {
@@ -302,7 +302,7 @@ namespace build_tools
         {
             addPlistDictionaryKey (*dict, "sandboxSafe", true);
         }
-        else
+        else if (! suppressResourceUsage)
         {
             dict->createNewChildElement ("key")->addTextElement ("resourceUsage");
             auto* resourceUsageDict = dict->createNewChildElement ("dict");
