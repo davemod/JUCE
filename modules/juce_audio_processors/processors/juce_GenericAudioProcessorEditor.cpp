@@ -73,7 +73,7 @@ private:
             parameterValueHasChanged = 1;
     }
 
-    void audioProcessorChanged (AudioProcessor*) override {}
+    void audioProcessorChanged (AudioProcessor*, const ChangeDetails&) override {}
 
     //==============================================================================
     void timerCallback() override
@@ -323,6 +323,8 @@ public:
             slider.setRange (0.0, 1.0, 1.0 / (getParameter().getNumSteps() - 1.0));
         else
             slider.setRange (0.0, 1.0);
+
+        slider.setDoubleClickReturnValue (true, param.getDefaultValue());
 
         slider.setScrollWheelEnabled (false);
         addAndMakeVisible (slider);

@@ -675,6 +675,19 @@ public:
                     return noErr;
                 }
 
+               #if defined (MAC_OS_X_VERSION_10_12)
+                case kAudioUnitProperty_AUHostIdentifier:
+                {
+                    if (inDataSize < sizeof (AUHostVersionIdentifier))
+                        return kAudioUnitErr_InvalidPropertyValue;
+
+                    const auto* identifier = static_cast<const AUHostVersionIdentifier*> (inData);
+                    PluginHostType::hostIdReportedByWrapper = String::fromCFString (identifier->hostName);
+
+                    return noErr;
+                }
+               #endif
+
                 default: break;
             }
         }
@@ -706,12 +719,9 @@ public:
 
             if (state.getSize() > 0)
             {
-                CFDataRef ourState = CFDataCreate (kCFAllocatorDefault, (const UInt8*) state.getData(), (CFIndex) state.getSize());
-
-                CFStringRef key = CFStringCreateWithCString (kCFAllocatorDefault, JUCE_STATE_DICTIONARY_KEY, kCFStringEncodingUTF8);
-                CFDictionarySetValue (dict, key, ourState);
-                CFRelease (key);
-                CFRelease (ourState);
+                CFUniquePtr<CFDataRef> ourState (CFDataCreate (kCFAllocatorDefault, (const UInt8*) state.getData(), (CFIndex) state.getSize()));
+                CFUniquePtr<CFStringRef> key (CFStringCreateWithCString (kCFAllocatorDefault, JUCE_STATE_DICTIONARY_KEY, kCFStringEncodingUTF8));
+                CFDictionarySetValue (dict, key.get(), ourState.get());
             }
         }
 
@@ -722,10 +732,9 @@ public:
     {
         {
             // Remove the data entry from the state to prevent the superclass loading the parameters
-            CFMutableDictionaryRef copyWithoutData = CFDictionaryCreateMutableCopy (nullptr, 0, (CFDictionaryRef) inData);
-            CFDictionaryRemoveValue (copyWithoutData, CFSTR (kAUPresetDataKey));
-            ComponentResult err = MusicDeviceBase::RestoreState (copyWithoutData);
-            CFRelease (copyWithoutData);
+            CFUniquePtr<CFMutableDictionaryRef> copyWithoutData (CFDictionaryCreateMutableCopy (nullptr, 0, (CFDictionaryRef) inData));
+            CFDictionaryRemoveValue (copyWithoutData.get(), CFSTR (kAUPresetDataKey));
+            ComponentResult err = MusicDeviceBase::RestoreState (copyWithoutData.get());
 
             if (err != noErr)
                 return err;
@@ -736,10 +745,9 @@ public:
             CFDictionaryRef dict = (CFDictionaryRef) inData;
             CFDataRef data = nullptr;
 
-            CFStringRef key = CFStringCreateWithCString (kCFAllocatorDefault, JUCE_STATE_DICTIONARY_KEY, kCFStringEncodingUTF8);
+            CFUniquePtr<CFStringRef> key (CFStringCreateWithCString (kCFAllocatorDefault, JUCE_STATE_DICTIONARY_KEY, kCFStringEncodingUTF8));
 
-            bool valuePresent = CFDictionaryGetValueIfPresent (dict, key, (const void**) &data);
-            CFRelease (key);
+            bool valuePresent = CFDictionaryGetValueIfPresent (dict, key.get(), (const void**) &data);
 
             if (valuePresent)
             {
@@ -1166,16 +1174,24 @@ public:
         sendAUEvent (kAudioUnitEvent_EndParameterChangeGesture, index);
     }
 
-    void audioProcessorChanged (AudioProcessor*) override
+    void audioProcessorChanged (AudioProcessor*, const ChangeDetails& details) override
     {
-        PropertyChanged (kAudioUnitProperty_Latency,       kAudioUnitScope_Global, 0);
-        PropertyChanged (kAudioUnitProperty_ParameterList, kAudioUnitScope_Global, 0);
-        PropertyChanged (kAudioUnitProperty_ParameterInfo, kAudioUnitScope_Global, 0);
-        PropertyChanged (kAudioUnitProperty_ClassInfo,     kAudioUnitScope_Global, 0);
+        if (details.latencyChanged)
+            PropertyChanged (kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0);
 
-        refreshCurrentPreset();
+        if (details.parameterInfoChanged)
+        {
+            PropertyChanged (kAudioUnitProperty_ParameterList, kAudioUnitScope_Global, 0);
+            PropertyChanged (kAudioUnitProperty_ParameterInfo, kAudioUnitScope_Global, 0);
+        }
 
-        PropertyChanged (kAudioUnitProperty_PresentPreset, kAudioUnitScope_Global, 0);
+        PropertyChanged (kAudioUnitProperty_ClassInfo, kAudioUnitScope_Global, 0);
+
+        if (details.programChanged)
+        {
+            refreshCurrentPreset();
+            PropertyChanged (kAudioUnitProperty_PresentPreset, kAudioUnitScope_Global, 0);
+        }
     }
 
     //==============================================================================
@@ -1747,6 +1763,9 @@ private:
     Array<const AudioProcessorParameterGroup*> parameterGroups;
 
     //==============================================================================
+    // According to the docs, this is the maximum size of a MIDIPacketList.
+    static constexpr UInt32 packetListBytes = 65536;
+
     AudioUnitEvent auEvent;
     mutable Array<AUPreset> presetsArray;
     CriticalSection incomingMidiLock;
@@ -1754,6 +1773,7 @@ private:
     AudioTimeStamp lastTimeStamp;
     int totalInChannels, totalOutChannels;
     HeapBlock<bool> pulledSucceeded;
+    HeapBlock<MIDIPacketList> packetList { packetListBytes, 1 };
 
     ThreadLocalValue<bool> inParameterChangedCallback;
 
@@ -1850,37 +1870,55 @@ private:
 
     void pushMidiOutput (UInt32 nFrames) noexcept
     {
-        UInt32 numPackets = 0;
-        size_t dataSize = 0;
+        MIDIPacket* end = nullptr;
+
+        const auto init = [&]
+        {
+            end = MIDIPacketListInit (packetList);
+        };
+
+        const auto send = [&]
+        {
+            midiCallback.midiOutputCallback (midiCallback.userData, &lastTimeStamp, 0, packetList);
+        };
+
+        const auto add = [&] (const MidiMessageMetadata& metadata)
+        {
+            end = MIDIPacketListAdd (packetList,
+                                     packetListBytes,
+                                     end,
+                                     static_cast<MIDITimeStamp> (metadata.samplePosition),
+                                     static_cast<ByteCount> (metadata.numBytes),
+                                     metadata.data);
+        };
+
+        init();
 
         for (const auto metadata : midiEvents)
         {
             jassert (isPositiveAndBelow (metadata.samplePosition, nFrames));
             ignoreUnused (nFrames);
 
-            dataSize += (size_t) metadata.numBytes;
-            ++numPackets;
+            add (metadata);
+
+            if (end == nullptr)
+            {
+                send();
+                init();
+                add (metadata);
+
+                if (end == nullptr)
+                {
+                    // If this is hit, the size of this midi packet exceeds the maximum size of
+                    // a MIDIPacketList. Large SysEx messages should be broken up into smaller
+                    // chunks.
+                    jassertfalse;
+                    init();
+                }
+            }
         }
 
-        MIDIPacket* p;
-        const size_t packetMembersSize     = sizeof (MIDIPacket)     - sizeof (p->data); // NB: GCC chokes on "sizeof (MidiMessage::data)"
-        const size_t packetListMembersSize = sizeof (MIDIPacketList) - sizeof (p->data);
-
-        HeapBlock<MIDIPacketList> packetList;
-        packetList.malloc (packetListMembersSize + packetMembersSize * numPackets + dataSize, 1);
-        packetList->numPackets = numPackets;
-
-        p = packetList->packet;
-
-        for (const auto metadata : midiEvents)
-        {
-            p->timeStamp = (MIDITimeStamp) metadata.samplePosition;
-            p->length = (UInt16) metadata.numBytes;
-            memcpy (p->data, metadata.data, (size_t) metadata.numBytes);
-            p = MIDIPacketNext (p);
-        }
-
-        midiCallback.midiOutputCallback (midiCallback.userData, &lastTimeStamp, 0, packetList);
+        send();
     }
 
     void GetAudioBufferList (bool isInput, int busIdx, AudioBufferList*& bufferList, bool& interleaved, int& numChannels)
@@ -2043,10 +2081,12 @@ private:
         addSupportedLayoutTags();
 
         for (int i = 0; i < enabledInputs; ++i)
-            if ((err = syncAudioUnitWithChannelSet (true,  i, juceFilter->getChannelLayoutOfBus (true,  i))) != noErr) return err;
+            if ((err = syncAudioUnitWithChannelSet (true,  i, juceFilter->getChannelLayoutOfBus (true,  i))) != noErr)
+                return err;
 
         for (int i = 0; i < enabledOutputs; ++i)
-            if ((err = syncAudioUnitWithChannelSet (false, i, juceFilter->getChannelLayoutOfBus (false, i))) != noErr) return err;
+            if ((err = syncAudioUnitWithChannelSet (false, i, juceFilter->getChannelLayoutOfBus (false, i))) != noErr)
+                return err;
 
         return noErr;
     }
@@ -2169,7 +2209,7 @@ private:
            #endif
 
             // add discrete layout tags
-            int n = bus->getMaxSupportedChannels(maxChannelsToProbeFor());
+            int n = bus->getMaxSupportedChannels (maxChannelsToProbeFor());
 
             for (int ch = 0; ch < n; ++ch)
             {
