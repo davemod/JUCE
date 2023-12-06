@@ -91,7 +91,8 @@ NetworkServiceDiscovery::AvailableServiceList::AvailableServiceList (const Strin
     acquireMulticastLock();
    #endif
 
-    socket.bindToPort (broadcastPort);
+    bool bound = socket.bindToPort (broadcastPort);
+    jassert (bound);
     startThread (Priority::background);
 }
 
