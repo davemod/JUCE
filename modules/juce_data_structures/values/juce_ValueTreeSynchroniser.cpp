@@ -115,6 +115,9 @@ void ValueTreeSynchroniser::sendFullSyncCallback()
 {
     MemoryOutputStream m;
     writeHeader (m, ValueTreeSynchroniserHelpers::fullSync);
+    DBG ("=== SEND FULL SYNC ===");
+    DBG (valueTree.toXmlString());
+    
     valueTree.writeToStream (m);
     stateChanged (m.getData(), m.getDataSize());
 }
@@ -175,7 +178,11 @@ bool ValueTreeSynchroniser::applyChange (ValueTree& root, const void* data, size
 
     if (type == ValueTreeSynchroniserHelpers::fullSync)
     {
-        root = ValueTree::readFromStream (input);
+        auto source = ValueTree::readFromStream (input);
+        DBG ("== APPLY FULL SYNC ===");
+        DBG (source.toXmlString());
+        
+        root.copyPropertiesAndChildrenFrom (source, nullptr);
         return true;
     }
 
