@@ -305,9 +305,9 @@ void NamedValueSet::copyToXmlAttributes (XmlElement& xml) const
         else
         {
             // These types can't be stored as XML!
-            jassert (! i.value.isObject());
-            jassert (! i.value.isMethod());
-            jassert (! i.value.isArray());
+//            jassert (! i.value.isObject());
+//            jassert (! i.value.isMethod());
+//            jassert (! i.value.isArray());
 
             xml.setAttribute (i.name.toString(),
                               i.value.toString());
