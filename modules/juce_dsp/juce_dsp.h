@@ -191,6 +191,13 @@
  #define JUCE_DSP_ENABLE_SNAP_TO_ZERO 1
 #endif
 
+/** Config: JUCE_ADD_R8BRAIN
+ 
+ If this flag is set, then the r88bbrain resampling library will be added an used for resampling some stuff.
+ */
+#ifndef JUCE_ADD_R8BRAIN
+#define JUCE_ADD_R8BRAIN 0
+#endif
 
 //==============================================================================
 #undef Complex  // apparently some C libraries actually define these symbols (!)
@@ -248,6 +255,10 @@ namespace util
 
  #include "containers/juce_SIMDRegister.h"
  #include "containers/juce_SIMDRegister_Impl.h"
+#endif
+
+#if JUCE_ADD_R8BRAIN
+#include "r8brain/CDSPResampler.h"
 #endif
 
 #include "maths/juce_SpecialFunctions.h"

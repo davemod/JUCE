@@ -63,6 +63,11 @@
  #define JUCE_IPP_AVAILABLE 1
 #endif
 
+
+#if JUCE_ADD_R8BRAIN
+#include "r8brain/r8bbase.cpp"
+#endif
+
 #include "processors/juce_FIRFilter.cpp"
 #include "processors/juce_IIRFilter.cpp"
 #include "processors/juce_FirstOrderTPTFilter.cpp"
