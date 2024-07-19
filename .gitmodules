@@ -1,0 +1,3 @@
+[submodule "modules/juce_dsp/r8brain"]
+	url = https://github.com/avaneev/r8brain-free-src
+	path = modules/juce_dsp/r8brain
