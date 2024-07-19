@@ -659,6 +659,25 @@ static AudioBuffer<float> resampleImpulseResponse (const AudioBuffer<float>& buf
 
     const auto factorReading = srcSampleRate / destSampleRate;
 
+#if JUCE_ADD_R8BRAIN
+
+    const auto numOutputSamples = roundToInt (buf.getNumSamples () / factorReading);
+    
+    AudioBuffer<float> result;
+    result.setSize (buf.getNumChannels (), numOutputSamples);
+    result.clear ();
+    
+    r8b::CDSPResampler resampler{ srcSampleRate, destSampleRate, buf.getNumSamples () };
+    
+    for (int chan = 0; chan < buf.getNumChannels (); chan++)
+        resampler.oneshot(buf.getArrayOfReadPointers()[chan], buf.getNumSamples (), result.getArrayOfWritePointers()[chan], result.getNumSamples ());
+        
+    return result;
+    
+#else
+
+
+
     AudioBuffer<float> original = buf;
     MemoryAudioSource memorySource (original, false);
     ResamplingAudioSource resamplingSource (&memorySource, false, buf.getNumChannels());
@@ -671,6 +690,8 @@ static AudioBuffer<float> resampleImpulseResponse (const AudioBuffer<float>& buf
     resamplingSource.getNextAudioBlock ({ &result, 0, result.getNumSamples() });
 
     return result;
+    
+#endif
 }
 
 //==============================================================================
