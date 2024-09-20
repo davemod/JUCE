@@ -663,15 +663,33 @@ static AudioBuffer<float> resampleImpulseResponse (const AudioBuffer<float>& buf
 
     const auto numOutputSamples = roundToInt (buf.getNumSamples () / factorReading);
     
+    AudioBuffer<float> original = buf;
+    
+    auto filterBuffer = [](AudioBuffer<float>& buffer, double sampleRate, double normalizedTransitionWidth = 0.04, double dB = -80.0){
+        AudioBlock<float> block{ buffer };
+
+        using Filter = dsp::ProcessorDuplicator<dsp::FIR::Filter<float>, dsp::FIR::Coefficients<float>>;
+
+        auto frequency = sampleRate / 2.0 / 1000.0;
+        frequency = roundToInt (frequency) * 1000.0;
+
+        Filter lowpass{ dsp::FilterDesign<float>::designFIRLowpassKaiserMethod (frequency, sampleRate, normalizedTransitionWidth, dB) };
+        lowpass.prepare ({sampleRate, (uint32)buffer.getNumSamples (), (uint32)buffer.getNumChannels () });
+        lowpass.process (juce::dsp::ProcessContextReplacing<float> (block));
+    };
+
+    if (srcSampleRate < destSampleRate)
+        filterBuffer (original, srcSampleRate);
+    
     AudioBuffer<float> result;
     result.setSize (buf.getNumChannels (), numOutputSamples);
     result.clear ();
-    
+
     r8b::CDSPResampler resampler{ srcSampleRate, destSampleRate, buf.getNumSamples () };
     
     for (int chan = 0; chan < buf.getNumChannels (); chan++)
-        resampler.oneshot(buf.getArrayOfReadPointers()[chan], buf.getNumSamples (), result.getArrayOfWritePointers()[chan], result.getNumSamples ());
-        
+        resampler.oneshot(original.getArrayOfReadPointers()[chan], buf.getNumSamples (), result.getArrayOfWritePointers()[chan], result.getNumSamples ());
+    
     return result;
     
 #else
