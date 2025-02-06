@@ -270,10 +270,6 @@ namespace util
  #include "containers/juce_SIMDRegister_Impl.h"
 #endif
 
-#if JUCE_ADD_R8BRAIN
-#include "r8brain/CDSPResampler.h"
-#endif
-
 #include "maths/juce_SpecialFunctions.h"
 #include "maths/juce_Matrix.h"
 #include "maths/juce_Phase.h"
