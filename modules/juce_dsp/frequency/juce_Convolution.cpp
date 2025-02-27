@@ -34,7 +34,7 @@
 
 #if JUCE_ADD_R8BRAIN
 #include "../r8brain/CDSPResampler.h"
-#include "r8brain/r8bbase.cpp"
+#include "../r8brain/r8bbase.cpp"
 #endif
 
 namespace juce::dsp
